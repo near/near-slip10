@@ -1,12 +1,14 @@
 [package]
 authors = ["Ngo Iok Ui <wusyong9104@gmail.com>", "NEAR DevEx team"]
+categories = ["cryptography", "no-std"]
 description = "SLIP-0010 ed25519 private key derivation — NEAR fork of the slip10 crate"
 edition = "2021"
 keywords = ["slip-0010", "slip-10", "slip10", "near"]
 license = "MIT"
 name = "near-slip10"
-repository = "https://github.com/vsavchyn-dev/near-slip10"
+repository = "https://github.com/near/near-slip10"
 readme = "README.md"
+rust-version = "1.81"
 version = "0.4.7"
 
 [dependencies.ed25519-dalek]
