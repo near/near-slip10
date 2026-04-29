@@ -88,4 +88,3 @@ impl From<Vec<u32>> for BIP32Path {
         BIP32Path(vector)
     }
 }
-
