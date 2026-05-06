@@ -151,4 +151,3 @@ fn hmac_sha256(key: &[u8], data: &[u8]) -> Output<HmacSha256> {
     // bytes for providing constant time equality check
     mac.finalize()
 }
-
