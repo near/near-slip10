@@ -10,7 +10,7 @@ SLIP-0010 ed25519 HD key derivation for the NEAR ecosystem.
 
 ## What this is
 
-`near-slip10` is a maintained continuation of the original [`slip10`](https://crates.io/crates/slip10) crate, focused on ed25519 [SLIP-0010](https://github.com/satoshilabs/slips/blob/master/slip-0010.md) derivation as used by the NEAR Protocol ecosystem. It is `no_std`-compatible and powers HD key derivation in [`near-cli-rs`](https://github.com/near/near-cli-rs) and adjacent NEAR tooling.
+`near-slip10` is a maintained continuation of the original [`slip10`](https://crates.io/crates/slip10) crate, focused on ed25519 [SLIP-0010](https://github.com/satoshilabs/slips/blob/master/slip-0010.md) derivation as used by the NEAR Protocol ecosystem. It is `no_std`-compatible and powers HD key derivation in [`near-ledger-rs`](https://github.com/near/near-ledger-rs), [`near-cli-rs`](https://github.com/near/near-cli-rs), and adjacent NEAR tooling.
 
 ## Quick start
 
