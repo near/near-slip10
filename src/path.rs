@@ -1,4 +1,4 @@
-use crate::{Error, HARDEND};
+use crate::{Error, HARDENED};
 
 use alloc::format;
 use alloc::string::String;
@@ -21,14 +21,14 @@ impl core::str::FromStr for BIP32Path {
             if p != "m" {
                 if p.ends_with('H') || p.ends_with('\'') {
                     let index: u32 = p[..p.len() - 1].parse().map_err(|_| Error::InvalidIndex)?;
-                    if index < HARDEND {
-                        paths.push(index + HARDEND);
+                    if index < HARDENED {
+                        paths.push(index + HARDENED);
                     } else {
                         return Err(Error::InvalidIndex);
                     }
                 } else {
                     let index: u32 = p.parse().map_err(|_| Error::InvalidIndex)?;
-                    if index < HARDEND {
+                    if index < HARDENED {
                         paths.push(index);
                     } else {
                         return Err(Error::InvalidIndex);
@@ -49,7 +49,7 @@ impl core::fmt::Display for BIP32Path {
             self.0
                 .iter()
                 .map(|index| {
-                    if let Some(index) = index.checked_sub(HARDEND) {
+                    if let Some(index) = index.checked_sub(HARDENED) {
                         format!("{}'", index)
                     } else {
                         format!("{}", index)
