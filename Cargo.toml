@@ -9,7 +9,7 @@ name = "near-slip10"
 repository = "https://github.com/near/near-slip10"
 readme = "README.md"
 rust-version = "1.81"
-version = "0.4.7"
+version = "0.4.8"
 
 [dependencies.ed25519-dalek]
 default-features = false
