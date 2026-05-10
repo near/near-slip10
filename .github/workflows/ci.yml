@@ -54,18 +54,18 @@ jobs:
         run: cargo doc --no-deps
 
   msrv:
-    name: MSRV (1.81)
+    name: MSRV (1.85)
     runs-on: warp-ubuntu-latest-x64-4x
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install MSRV Rust toolchain (1.81)
-        uses: dtolnay/rust-toolchain@1.81
+      - name: Install MSRV Rust toolchain (1.85)
+        uses: dtolnay/rust-toolchain@1.85
 
       - uses: Swatinem/rust-cache@v2
         with:
           cache-provider: warpbuild
-          shared-key: "linux-msrv-1.81"
+          shared-key: "linux-msrv-1.85"
           cache-all-crates: true
 
       - name: Build with MSRV

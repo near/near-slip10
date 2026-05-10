@@ -12,7 +12,7 @@ use core::convert::TryInto;
 use core::fmt;
 
 use ed25519_dalek::{SigningKey, VerifyingKey};
-use hmac::{crypto_mac::Output, Hmac, Mac, NewMac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha512;
 
 pub(crate) const HARDENED: u32 = 1 << 31;
@@ -88,7 +88,7 @@ impl Key {
     /// Creates a new master private extended key for the curve from a seed.
     pub fn new(seed: &[u8], curve: Curve) -> Self {
         // Calculate I = HMAC-SHA512(Key = Curve, Data = seed)
-        let inter = hmac_sha512(curve.seedkey(), seed).into_bytes();
+        let inter = hmac_sha512(curve.seedkey(), seed);
 
         // Split I into two 32-byte sequences, I_L and I_R
         // Use parse256(I_L) as secret key, and I_R as chain code.
@@ -112,7 +112,7 @@ impl Key {
             return Err(Error::InvalidIndex);
         }
 
-        let inter = self.get_intermediary(index).into_bytes();
+        let inter = self.get_intermediary(index);
 
         // Split I into two 32-byte sequences, I_L and I_R
         let key: [u8; 32] = inter[..32].try_into().unwrap();
@@ -127,7 +127,7 @@ impl Key {
         })
     }
 
-    fn get_intermediary(&self, index: u32) -> Output<HmacSha512> {
+    fn get_intermediary(&self, index: u32) -> [u8; 64] {
         let mut data = Vec::new();
         if index < HARDENED {
             data.extend_from_slice(&self.curve.public_key(&self.key));
@@ -141,12 +141,9 @@ impl Key {
     }
 }
 
-fn hmac_sha512(key: &[u8], data: &[u8]) -> Output<HmacSha512> {
+fn hmac_sha512(key: &[u8], data: &[u8]) -> [u8; 64] {
     // Create HMAC-SHA512 instance which implements `Mac` trait
-    let mut mac = HmacSha512::new_varkey(key).expect("HMAC can take key of any size");
+    let mut mac = HmacSha512::new_from_slice(key).expect("HMAC can take key of any size");
     mac.update(data);
-
-    // `result` has type `Output` which is a thin wrapper around array of
-    // bytes for providing constant time equality check
-    mac.finalize()
+    mac.finalize().into_bytes().into()
 }
