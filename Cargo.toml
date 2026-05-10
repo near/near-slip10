@@ -28,5 +28,15 @@ default-features = false
 features = ["derive"]
 version = "1.8"
 
+[dependencies.bip39]
+default-features = false
+features = ["alloc"]
+optional = true
+version = "2"
+
+[features]
+default = []
+mnemonic = ["dep:bip39"]
+
 [dev-dependencies.hex]
 version = "0.4"
