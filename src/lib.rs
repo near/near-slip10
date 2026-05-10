@@ -14,6 +14,7 @@ use core::fmt;
 use ed25519_dalek::{SigningKey, VerifyingKey};
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha512;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 pub(crate) const HARDENED: u32 = 1 << 31;
 
@@ -78,9 +79,11 @@ impl Curve {
 }
 
 /// A SLIP-10 extended private key.
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct Key {
     pub key: [u8; 32],
     pub chain_code: [u8; 32],
+    #[zeroize(skip)]
     pub curve: Curve,
 }
 
@@ -88,12 +91,13 @@ impl Key {
     /// Creates a new master private extended key for the curve from a seed.
     pub fn new(seed: &[u8], curve: Curve) -> Self {
         // Calculate I = HMAC-SHA512(Key = Curve, Data = seed)
-        let inter = hmac_sha512(curve.seedkey(), seed);
+        let mut inter = hmac_sha512(curve.seedkey(), seed);
 
         // Split I into two 32-byte sequences, I_L and I_R
         // Use parse256(I_L) as secret key, and I_R as chain code.
         let key: [u8; 32] = inter[..32].try_into().unwrap();
         let chain_code: [u8; 32] = inter[32..].try_into().unwrap();
+        inter.zeroize();
 
         Self {
             key,
@@ -112,11 +116,12 @@ impl Key {
             return Err(Error::InvalidIndex);
         }
 
-        let inter = self.get_intermediary(index);
+        let mut inter = self.get_intermediary(index);
 
         // Split I into two 32-byte sequences, I_L and I_R
         let key: [u8; 32] = inter[..32].try_into().unwrap();
         let chain_code: [u8; 32] = inter[32..].try_into().unwrap();
+        inter.zeroize();
 
         // Compute the private key from I_L and k_par
 
