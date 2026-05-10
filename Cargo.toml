@@ -8,7 +8,7 @@ license = "MIT"
 name = "near-slip10"
 repository = "https://github.com/near/near-slip10"
 readme = "README.md"
-rust-version = "1.81"
+rust-version = "1.85"
 version = "0.4.8"
 
 [dependencies.ed25519-dalek]
