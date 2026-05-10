@@ -12,7 +12,7 @@ use core::convert::TryInto;
 use core::fmt;
 
 use ed25519_dalek::{SigningKey, VerifyingKey};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha512;
 
 pub(crate) const HARDENED: u32 = 1 << 31;
