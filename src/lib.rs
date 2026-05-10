@@ -16,7 +16,29 @@ use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha512;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-pub(crate) const HARDENED: u32 = 1 << 31;
+/// The BIP-32 hardened-index bit (`1 << 31`). Indices `>= HARDENED` are hardened.
+pub const HARDENED: u32 = 1 << 31;
+
+/// NEAR's BIP-44 coin type (per SLIP-0044).
+pub const NEAR_COIN_TYPE: u32 = 397;
+
+/// The default NEAR HD derivation path used by `near-cli-rs` and most NEAR wallets.
+pub const NEAR_DEFAULT_HD_PATH: &str = "m/44'/397'/0'";
+
+/// Returns true if `index` is a hardened BIP-32 index (>= 2^31).
+pub const fn is_hardened(index: u32) -> bool {
+    index >= HARDENED
+}
+
+/// Returns the hardened form of `index`. The argument must be < 2^31; otherwise the result is the same as `index`.
+pub const fn harden(index: u32) -> u32 {
+    index | HARDENED
+}
+
+/// Returns the unhardened (low-31-bit) part of `index`.
+pub const fn unharden(index: u32) -> u32 {
+    index & !HARDENED
+}
 
 #[derive(Debug)]
 pub enum Error {
@@ -41,7 +63,7 @@ pub fn derive_key_from_path(seed: &[u8], curve: Curve, path: &BIP32Path) -> Resu
     let master: Result<Key, Error> = Ok(Key::new(seed, curve));
 
     path.0.iter().fold(master, |key, index| match key {
-        Ok(k) => Ok(k.generate_child_key(*index)?),
+        Ok(k) => Ok(k.derive_child(*index)?),
         Err(e) => Err(e),
     })
 }
@@ -59,9 +81,9 @@ impl Curve {
         }
     }
 
-    fn validate_child_index(&self, index: u32) -> bool {
+    fn is_valid_child_index(&self, index: u32) -> bool {
         match self {
-            Curve::Ed25519 => index < HARDENED,
+            Curve::Ed25519 => index >= HARDENED,
         }
     }
 
@@ -111,8 +133,20 @@ impl Key {
         self.curve.public_key(&self.key)
     }
 
-    fn generate_child_key(&self, index: u32) -> Result<Key, Error> {
-        if self.curve.validate_child_index(index) {
+    /// Derive a child key for the given index. For Ed25519, only hardened indices (>= 2^31) are valid.
+    ///
+    /// # Example
+    /// ```
+    /// use near_slip10::{derive_key_from_path, BIP32Path, Curve, NEAR_DEFAULT_HD_PATH};
+    /// use core::str::FromStr;
+    ///
+    /// let seed = [0u8; 64];
+    /// let path = BIP32Path::from_str(NEAR_DEFAULT_HD_PATH).unwrap();
+    /// let key = derive_key_from_path(&seed, Curve::Ed25519, &path).unwrap();
+    /// assert_eq!(key.key.len(), 32);
+    /// ```
+    pub fn derive_child(&self, index: u32) -> Result<Key, Error> {
+        if !self.curve.is_valid_child_index(index) {
             return Err(Error::InvalidIndex);
         }
 
