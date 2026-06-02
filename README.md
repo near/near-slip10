@@ -5,7 +5,7 @@ SLIP-0010 ed25519 HD key derivation for the NEAR ecosystem.
 [![crates.io](https://img.shields.io/crates/v/near-slip10.svg?style=flat-square)](https://crates.io/crates/near-slip10)
 [![docs.rs](https://img.shields.io/docsrs/near-slip10?style=flat-square)](https://docs.rs/near-slip10)
 [![CI](https://img.shields.io/github/actions/workflow/status/near/near-slip10/ci.yml?branch=master&style=flat-square)](https://github.com/near/near-slip10/actions/workflows/ci.yml)
-[![MSRV](https://img.shields.io/badge/MSRV-1.81-blue?style=flat-square)](https://blog.rust-lang.org/)
+[![MSRV](https://img.shields.io/badge/MSRV-1.85-blue?style=flat-square)](https://blog.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](#license)
 
 ## What this is
