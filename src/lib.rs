@@ -186,3 +186,66 @@ fn hmac_sha512(key: &[u8], data: &[u8]) -> [u8; 64] {
     mac.update(data);
     mac.finalize().into_bytes().into()
 }
+
+#[cfg(feature = "mnemonic")]
+pub use mnemonic_impl::{derive_key_from_mnemonic, MnemonicError};
+
+#[cfg(feature = "mnemonic")]
+mod mnemonic_impl {
+    use crate::{derive_key_from_path, BIP32Path, Curve, Error, Key};
+    use core::fmt;
+
+    /// Derive an Ed25519 SLIP-10 key from a BIP-39 mnemonic phrase and HD path.
+    ///
+    /// `passphrase` is the optional BIP-39 passphrase ("25th word"). Use `""` for none.
+    ///
+    /// # Example
+    /// ```
+    /// use near_slip10::{derive_key_from_mnemonic, BIP32Path, NEAR_DEFAULT_HD_PATH};
+    /// use core::str::FromStr;
+    ///
+    /// let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    /// let path = BIP32Path::from_str(NEAR_DEFAULT_HD_PATH).unwrap();
+    /// let key = derive_key_from_mnemonic(phrase, "", &path).unwrap();
+    /// assert_eq!(key.key.len(), 32);
+    /// ```
+    pub fn derive_key_from_mnemonic(
+        phrase: &str,
+        passphrase: &str,
+        path: &BIP32Path,
+    ) -> Result<Key, MnemonicError> {
+        let mnemonic = bip39::Mnemonic::parse(phrase).map_err(MnemonicError::InvalidMnemonic)?;
+        let seed = mnemonic.to_seed(passphrase);
+        derive_key_from_path(&seed, Curve::Ed25519, path).map_err(MnemonicError::Derivation)
+    }
+
+    /// Errors from [`derive_key_from_mnemonic`].
+    #[derive(Debug)]
+    pub enum MnemonicError {
+        /// The provided phrase is not a valid BIP-39 mnemonic.
+        InvalidMnemonic(bip39::Error),
+        /// SLIP-10 derivation from the seed failed.
+        Derivation(Error),
+    }
+
+    impl fmt::Display for MnemonicError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                MnemonicError::InvalidMnemonic(e) => write!(f, "invalid mnemonic: {e}"),
+                MnemonicError::Derivation(e) => write!(f, "key derivation failed: {e}"),
+            }
+        }
+    }
+
+    impl core::error::Error for MnemonicError {
+        fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+            match self {
+                // `bip39::Error` only implements `core::error::Error` with the `std` feature,
+                // which we deliberately don't enable to keep `no_std` builds clean. The error
+                // is still rendered via `Display` in our own `Display` impl above.
+                MnemonicError::InvalidMnemonic(_) => None,
+                MnemonicError::Derivation(e) => Some(e),
+            }
+        }
+    }
+}
