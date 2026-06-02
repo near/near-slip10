@@ -1,4 +1,5 @@
 #![no_std]
+#![forbid(unsafe_code)]
 
 extern crate alloc;
 
@@ -14,7 +15,7 @@ use ed25519_dalek::{SigningKey, VerifyingKey};
 use hmac::{crypto_mac::Output, Hmac, Mac, NewMac};
 use sha2::Sha512;
 
-pub(crate) const HARDEND: u32 = 1 << 31;
+pub(crate) const HARDENED: u32 = 1 << 31;
 
 #[derive(Debug)]
 pub enum Error {
@@ -29,10 +30,10 @@ impl fmt::Display for Error {
     }
 }
 
-//impl core::error::Error for Error {}
+impl core::error::Error for Error {}
 
-// Create alias for HMAC-SHA256
-type HmacSha256 = Hmac<Sha512>;
+// Create alias for HMAC-SHA512
+type HmacSha512 = Hmac<Sha512>;
 
 /// Derives an extended private key for the curve from seed and path as outlined by SLIP-10.
 pub fn derive_key_from_path(seed: &[u8], curve: Curve, path: &BIP32Path) -> Result<Key, Error> {
@@ -45,6 +46,7 @@ pub fn derive_key_from_path(seed: &[u8], curve: Curve, path: &BIP32Path) -> Resu
 }
 
 #[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
 pub enum Curve {
     Ed25519,
 }
@@ -58,18 +60,17 @@ impl Curve {
 
     fn validate_child_index(&self, index: u32) -> bool {
         match self {
-            Curve::Ed25519 => index < HARDEND,
+            Curve::Ed25519 => index < HARDENED,
         }
     }
 
-    fn public_key(&self, key: &[u8; 32]) -> Vec<u8> {
+    fn public_key(&self, key: &[u8; 32]) -> [u8; 33] {
         match self {
             Curve::Ed25519 => {
                 let signing_key: SigningKey = SigningKey::from_bytes(key);
                 let public: VerifyingKey = signing_key.verifying_key();
-                let mut result = Vec::new();
-                result.push(0);
-                public.to_bytes().iter().for_each(|i| result.push(*i));
+                let mut result = [0u8; 33];
+                result[1..].copy_from_slice(&public.to_bytes());
                 result
             }
         }
@@ -87,7 +88,7 @@ impl Key {
     /// Creates a new master private extended key for the curve from a seed.
     pub fn new(seed: &[u8], curve: Curve) -> Self {
         // Calculate I = HMAC-SHA512(Key = Curve, Data = seed)
-        let inter = hmac_sha256(curve.seedkey(), seed).into_bytes();
+        let inter = hmac_sha512(curve.seedkey(), seed).into_bytes();
 
         // Split I into two 32-byte sequences, I_L and I_R
         // Use parse256(I_L) as secret key, and I_R as chain code.
@@ -103,9 +104,7 @@ impl Key {
 
     /// Compute corresponding public key.
     pub fn public_key(&self) -> [u8; 33] {
-        let mut key = [0u8; 33];
-        key.copy_from_slice(&self.curve.public_key(&self.key));
-        key
+        self.curve.public_key(&self.key)
     }
 
     fn generate_child_key(&self, index: u32) -> Result<Key, Error> {
@@ -128,23 +127,23 @@ impl Key {
         })
     }
 
-    fn get_intermediary(&self, index: u32) -> Output<HmacSha256> {
+    fn get_intermediary(&self, index: u32) -> Output<HmacSha512> {
         let mut data = Vec::new();
-        if index < HARDEND {
-            data.append(&mut self.curve.public_key(&self.key));
+        if index < HARDENED {
+            data.extend_from_slice(&self.curve.public_key(&self.key));
         } else {
             data.push(0u8);
             self.key.iter().for_each(|i| data.push(*i));
         }
         index.to_be_bytes().iter().for_each(|i| data.push(*i));
 
-        hmac_sha256(&self.chain_code, &data)
+        hmac_sha512(&self.chain_code, &data)
     }
 }
 
-fn hmac_sha256(key: &[u8], data: &[u8]) -> Output<HmacSha256> {
-    // Create HMAC-SHA256 instance which implements `Mac` trait
-    let mut mac = HmacSha256::new_varkey(key).expect("HMAC can take key of any size");
+fn hmac_sha512(key: &[u8], data: &[u8]) -> Output<HmacSha512> {
+    // Create HMAC-SHA512 instance which implements `Mac` trait
+    let mut mac = HmacSha512::new_varkey(key).expect("HMAC can take key of any size");
     mac.update(data);
 
     // `result` has type `Output` which is a thin wrapper around array of

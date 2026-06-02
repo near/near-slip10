@@ -2,60 +2,66 @@ use core::str::FromStr;
 
 use near_slip10::BIP32Path;
 
-const HARDEND: u32 = 1 << 31;
+const HARDENED: u32 = 1 << 31;
 
 #[test]
 fn test_parse_path() {
     let smaples = vec![
         ("", BIP32Path::from(Vec::new())),
         ("m", BIP32Path::from(Vec::new())),
-        ("m/0H", BIP32Path::from(vec![HARDEND])),
-        ("m/0H/1", BIP32Path::from(vec![HARDEND, 1])),
-        ("m/0H/1/2H", BIP32Path::from(vec![HARDEND, 1, HARDEND + 2])),
+        ("m/0H", BIP32Path::from(vec![HARDENED])),
+        ("m/0H/1", BIP32Path::from(vec![HARDENED, 1])),
+        (
+            "m/0H/1/2H",
+            BIP32Path::from(vec![HARDENED, 1, HARDENED + 2]),
+        ),
         (
             "m/0H/1/2H/2",
-            BIP32Path::from(vec![HARDEND, 1, HARDEND + 2, 2]),
+            BIP32Path::from(vec![HARDENED, 1, HARDENED + 2, 2]),
         ),
         (
             "m/0H/1/2H/2/1000000000",
-            BIP32Path::from(vec![HARDEND, 1, HARDEND + 2, 2, 1000000000]),
+            BIP32Path::from(vec![HARDENED, 1, HARDENED + 2, 2, 1000000000]),
         ),
-        ("0H", BIP32Path::from(vec![HARDEND])),
-        ("0H/1", BIP32Path::from(vec![HARDEND, 1])),
-        ("0H/1/2H", BIP32Path::from(vec![HARDEND, 1, HARDEND + 2])),
+        ("0H", BIP32Path::from(vec![HARDENED])),
+        ("0H/1", BIP32Path::from(vec![HARDENED, 1])),
+        ("0H/1/2H", BIP32Path::from(vec![HARDENED, 1, HARDENED + 2])),
         (
             "0H/1/2H/2",
-            BIP32Path::from(vec![HARDEND, 1, HARDEND + 2, 2]),
+            BIP32Path::from(vec![HARDENED, 1, HARDENED + 2, 2]),
         ),
         (
             "0H/1/2H/2/1000000000",
-            BIP32Path::from(vec![HARDEND, 1, HARDEND + 2, 2, 1000000000]),
+            BIP32Path::from(vec![HARDENED, 1, HARDENED + 2, 2, 1000000000]),
         ),
-        ("m/0'", BIP32Path::from(vec![HARDEND])),
-        ("m/0'/1", BIP32Path::from(vec![HARDEND, 1])),
-        ("m/0'/1/2'", BIP32Path::from(vec![HARDEND, 1, HARDEND + 2])),
+        ("m/0'", BIP32Path::from(vec![HARDENED])),
+        ("m/0'/1", BIP32Path::from(vec![HARDENED, 1])),
+        (
+            "m/0'/1/2'",
+            BIP32Path::from(vec![HARDENED, 1, HARDENED + 2]),
+        ),
         (
             "m/0'/1/2'/2",
-            BIP32Path::from(vec![HARDEND, 1, HARDEND + 2, 2]),
+            BIP32Path::from(vec![HARDENED, 1, HARDENED + 2, 2]),
         ),
         (
             "m/0'/1/2'/2/1000000000",
-            BIP32Path::from(vec![HARDEND, 1, HARDEND + 2, 2, 1000000000]),
+            BIP32Path::from(vec![HARDENED, 1, HARDENED + 2, 2, 1000000000]),
         ),
-        ("0'", BIP32Path::from(vec![HARDEND])),
-        ("0'/1", BIP32Path::from(vec![HARDEND, 1])),
-        ("0'/1/2'", BIP32Path::from(vec![HARDEND, 1, HARDEND + 2])),
+        ("0'", BIP32Path::from(vec![HARDENED])),
+        ("0'/1", BIP32Path::from(vec![HARDENED, 1])),
+        ("0'/1/2'", BIP32Path::from(vec![HARDENED, 1, HARDENED + 2])),
         (
             "0'/1/2'/2",
-            BIP32Path::from(vec![HARDEND, 1, HARDEND + 2, 2]),
+            BIP32Path::from(vec![HARDENED, 1, HARDENED + 2, 2]),
         ),
         (
             "0'/1/2'/2/1000000000",
-            BIP32Path::from(vec![HARDEND, 1, HARDEND + 2, 2, 1000000000]),
+            BIP32Path::from(vec![HARDENED, 1, HARDENED + 2, 2, 1000000000]),
         ),
         (
             "0/2147483647'/1/2147483646'/2",
-            BIP32Path::from(vec![0, HARDEND + 2147483647, 1, HARDEND + 2147483646, 2]),
+            BIP32Path::from(vec![0, HARDENED + 2147483647, 1, HARDENED + 2147483646, 2]),
         ),
         (
             "0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0",
