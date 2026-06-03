@@ -88,3 +88,22 @@ impl From<Vec<u32>> for BIP32Path {
         BIP32Path(vector)
     }
 }
+
+/// Serializes the path as its string representation (e.g. `"m/44'/397'/0'"`),
+/// matching the wire format used by `near-cli-rs`.
+#[cfg(feature = "serde")]
+impl serde::Serialize for BIP32Path {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+/// Deserializes the path from its string representation (e.g. `"m/44'/397'/0'"`)
+/// via its [`FromStr`](core::str::FromStr) implementation.
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for BIP32Path {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        s.parse().map_err(serde::de::Error::custom)
+    }
+}
