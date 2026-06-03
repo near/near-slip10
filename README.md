@@ -16,12 +16,12 @@ SLIP-0010 ed25519 HD key derivation for the NEAR ecosystem.
 
 ```rust
 use core::str::FromStr;
-use near_slip10::{derive_key_from_path, BIP32Path, Curve};
+use near_slip10::{derive_key_from_path, BIP32Path, Curve, NEAR_DEFAULT_HD_PATH};
 
 fn main() -> Result<(), near_slip10::Error> {
     // Seed bytes from a BIP-39 mnemonic, e.g. via the `bip39` crate.
     let seed: [u8; 64] = /* ... */;
-    let path = BIP32Path::from_str("m/44'/397'/0'")?;
+    let path = BIP32Path::from_str(NEAR_DEFAULT_HD_PATH)?;
     let key = derive_key_from_path(&seed, Curve::Ed25519, &path)?;
 
     // `key.key` is the 32-byte ed25519 secret.
@@ -33,12 +33,32 @@ fn main() -> Result<(), near_slip10::Error> {
 
 `BIP32Path` accepts both `'` and `H` as hardened markers and round-trips through `Display` as `m/44'/397'/0'`.
 
+## Cargo features
+
+All features are off by default, keeping the core crate dependency-light and `no_std`.
+
+- `mnemonic` — enables `derive_key_from_mnemonic(phrase, passphrase, &path)`, deriving a key directly from a BIP-39 mnemonic via the `bip39` crate.
+
+```rust
+// with `features = ["mnemonic"]`
+use core::str::FromStr;
+use near_slip10::{derive_key_from_mnemonic, BIP32Path, NEAR_DEFAULT_HD_PATH};
+
+let path = BIP32Path::from_str(NEAR_DEFAULT_HD_PATH).unwrap();
+// `passphrase` is the optional BIP-39 "25th word"; use "" for none.
+let key = derive_key_from_mnemonic("abandon abandon ... about", "", &path)?;
+```
+
+`derive_key_from_mnemonic` returns its own `MnemonicError` (distinct from the `Error` used elsewhere), wrapping invalid-mnemonic and derivation failures.
+
 ## NEAR derivation paths
 
 NEAR's registered BIP-44 coin type is **397** ([SLIP-0044 entry](https://github.com/satoshilabs/slips/blob/master/slip-0044.md)).
 
 - `m/44'/397'/0'` — the default for in-memory seed phrases and most NEAR wallets, including `near-cli-rs`.
 - Some wallets (e.g. Meteor, Keystone, Ledger Live) use trailing variations under `44'/397'/...'`. When integrating with a specific wallet, check its documented path rather than assuming the default.
+
+For programmatic path construction the crate exports `NEAR_COIN_TYPE` (`397`) and `NEAR_DEFAULT_HD_PATH` (`"m/44'/397'/0'"`), along with the `harden`/`unharden`/`is_hardened` index helpers and `Key::derive_child` for stepping through a path one index at a time.
 
 ## Supported curves
 
@@ -59,7 +79,7 @@ The test suite verifies the official SLIP-10 ed25519 test vectors:
 
 ## Security
 
-Secret bytes (`Key.key`) are not currently zeroized on drop. This is a known gap tracked for the next minor release. Consumers handling untrusted seeds should wrap derived keys in their own zeroizing container until then.
+`Key` implements `ZeroizeOnDrop`: the secret key and chain code are wiped from memory when the key is dropped, and intermediate HMAC outputs are zeroized during derivation. The crate contains no `unsafe` code (`#![forbid(unsafe_code)]`).
 
 ## Relationship to upstream `slip10`
 
