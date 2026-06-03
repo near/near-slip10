@@ -33,11 +33,24 @@ fn test_ed25519() {
     // Guard against an empty/partial fixture silently passing.
     assert_eq!(vectors.len(), 2, "expected both SLIP-0010 test vectors");
 
+    // Each official ed25519 vector has exactly 6 derivation rows. Without this
+    // per-vector guard, a vector with an empty `derivations` array would skip its
+    // inner loop and the test would still pass vacuously.
+    let mut checked_derivations = 0usize;
+
     for vector in &vectors {
+        assert_eq!(
+            vector.derivations.len(),
+            6,
+            "vector {} should have 6 derivation rows",
+            vector.name
+        );
+
         let seed = Vec::from_hex(&vector.seed)
             .unwrap_or_else(|_| panic!("vector {} has invalid seed hex", vector.name));
 
         for d in &vector.derivations {
+            checked_derivations += 1;
             let path = BIP32Path::from_str(&d.path)
                 .unwrap_or_else(|_| panic!("vector {} has invalid path {}", vector.name, d.path));
             let key = derive_key_from_path(&seed, Curve::Ed25519, &path).unwrap_or_else(|e| {
@@ -70,4 +83,10 @@ fn test_ed25519() {
             );
         }
     }
+
+    // Belt-and-suspenders: confirm we actually exercised every spec row (2 × 6).
+    assert_eq!(
+        checked_derivations, 12,
+        "expected to check all 12 SLIP-0010 ed25519 derivations"
+    );
 }
