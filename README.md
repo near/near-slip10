@@ -44,9 +44,17 @@ All features are off by default, keeping the core crate dependency-light and `no
 use core::str::FromStr;
 use near_slip10::{derive_key_from_mnemonic, BIP32Path, NEAR_DEFAULT_HD_PATH};
 
-let path = BIP32Path::from_str(NEAR_DEFAULT_HD_PATH).unwrap();
-// `passphrase` is the optional BIP-39 "25th word"; use "" for none.
-let key = derive_key_from_mnemonic("abandon abandon ... about", "", &path)?;
+fn main() -> Result<(), near_slip10::MnemonicError> {
+    // A valid 12-word BIP-39 phrase (here, the canonical all-zero test vector).
+    let phrase = "abandon abandon abandon abandon abandon abandon \
+                  abandon abandon abandon abandon abandon about";
+    let path = BIP32Path::from_str(NEAR_DEFAULT_HD_PATH).unwrap();
+    // `passphrase` is the optional BIP-39 "25th word"; use "" for none.
+    let key = derive_key_from_mnemonic(phrase, "", &path)?;
+
+    // `key.key` is the 32-byte ed25519 secret.
+    Ok(())
+}
 ```
 
 `derive_key_from_mnemonic` returns its own `MnemonicError` (distinct from the `Error` used elsewhere), wrapping invalid-mnemonic and derivation failures.
