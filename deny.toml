@@ -1,0 +1,43 @@
+# cargo-deny configuration for near-slip10.
+# See https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+# Check the full dependency tree, including optional features such as `mnemonic`.
+all-features = true
+
+# Security advisories from the RustSec advisory database.
+[advisories]
+# Fail if a dependency has a yanked version in the lockfile. Vulnerabilities and
+# unmaintained crates are denied by the modern cargo-deny defaults, so we don't
+# set the (removed) string keys for those.
+yanked = "deny"
+# ignore = []
+
+# License policy: explicit allow list, no `allow-osi` blanket.
+[licenses]
+# Some allowed licenses (e.g. ISC, Apache-2.0 WITH LLVM-exception) aren't present in
+# the current tree but are kept as headroom; don't warn about the unused allowances.
+unused-allowed-license = "allow"
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-3-Clause",
+    "Unicode-3.0",
+    "Zlib",
+    "ISC",
+    # bip39 (mnemonic feature) and its deps bitcoin_hashes / hex-conservative are
+    # public-domain dedications under CC0-1.0.
+    "CC0-1.0",
+]
+
+[bans]
+# digest 0.10 and 0.11 legitimately coexist (e.g. via ed25519-dalek), so we warn
+# on duplicate versions rather than failing the build.
+multiple-versions = "warn"
+
+[sources]
+# Only allow dependencies from the official crates.io registry.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
