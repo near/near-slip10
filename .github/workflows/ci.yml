@@ -20,7 +20,7 @@ jobs:
     name: CI
     runs-on: warp-ubuntu-latest-x64-4x
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install stable Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -71,7 +71,7 @@ jobs:
     name: MSRV (1.85)
     runs-on: warp-ubuntu-latest-x64-4x
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install MSRV Rust toolchain (1.85)
         uses: dtolnay/rust-toolchain@1.85
