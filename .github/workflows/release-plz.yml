@@ -68,6 +68,6 @@ jobs:
         run: cargo package --no-verify
       - name: Attest build provenance
         if: steps.release-plz.outputs.releases_created == 'true'
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: target/package/*.crate
