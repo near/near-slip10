@@ -19,6 +19,21 @@ fn near_default_path_from_well_known_mnemonic() {
     // bip39::Mnemonic::to_seed() + SLIP-10 ed25519 derivation.
     let expected_hex = "0c158d858a52316667d03d1d04aad51b3b542cd705215810629b78c501492fba";
     assert_eq!(&key.key[..], &Vec::from_hex(expected_hex).unwrap()[..]);
+
+    // The Ed25519 public key derived from the (trusted) private key above, in
+    // SLIP-10's 33-byte `00`-prefixed form. Pinned to catch any regression in
+    // public-key computation end-to-end from the mnemonic.
+    let expected_public_hex = "005510e2b44cae6eb807e3e0e45d579dda058c274abcba15e5cb84636f5d1ee412";
+    let public = key.public_key();
+    assert_eq!(public.len(), 33);
+    assert_eq!(
+        public[0], 0x00,
+        "SLIP-10 ed25519 public keys are 00-prefixed"
+    );
+    assert_eq!(
+        &public[..],
+        &Vec::from_hex(expected_public_hex).unwrap()[..]
+    );
 }
 
 #[test]

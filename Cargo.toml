@@ -47,5 +47,12 @@ serde = ["dep:serde", "serde/alloc"]
 [dev-dependencies.hex]
 version = "0.4"
 
+[dev-dependencies.serde]
+features = ["derive"]
+version = "1"
+
 [dev-dependencies.serde_json]
+version = "1"
+
+[dev-dependencies.proptest]
 version = "1"
