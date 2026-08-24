@@ -75,7 +75,7 @@ fn test_ed25519() {
                 d.path
             );
             assert_eq!(
-                &key.public_key()[..],
+                &key.public_key().unwrap_as_ed25519()[..],
                 &Vec::from_hex(&d.public).unwrap()[..],
                 "public key mismatch for {} {}",
                 vector.name,

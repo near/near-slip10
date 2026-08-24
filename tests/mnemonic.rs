@@ -2,10 +2,7 @@
 
 use core::str::FromStr;
 use hex::FromHex;
-use near_slip10::{
-    derive_key_from_mnemonic, derive_ml_dsa_65_key_from_mnemonic, BIP32Path, Curve,
-    NEAR_DEFAULT_HD_PATH,
-};
+use near_slip10::{derive_key_from_mnemonic, BIP32Path, Curve, NEAR_DEFAULT_HD_PATH};
 
 /// Standard BIP-39 test mnemonic from the BIP-39 spec.
 const TEST_MNEMONIC: &str =

@@ -300,7 +300,7 @@ mod mnemonic_impl {
     ///
     /// # Example
     /// ```
-    /// use near_slip10::{derive_key_from_mnemonic, BIP32Path, NEAR_DEFAULT_HD_PATH};
+    /// use near_slip10::{derive_ml_dsa_65_key_from_mnemonic, BIP32Path, NEAR_DEFAULT_HD_PATH};
     /// use core::str::FromStr;
     ///
     /// let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
@@ -324,7 +324,7 @@ mod mnemonic_impl {
     ///
     /// # Example
     /// ```
-    /// use near_slip10::{derive_key_from_mnemonic, BIP32Path, NEAR_DEFAULT_HD_PATH};
+    /// use near_slip10::{derive_ed25519_key_from_mnemonic, BIP32Path, NEAR_DEFAULT_HD_PATH};
     /// use core::str::FromStr;
     ///
     /// let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
