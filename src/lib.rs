@@ -11,7 +11,6 @@ use alloc::boxed::Box;
 use core::convert::TryInto;
 use core::fmt;
 
-use aws_lc_rs::signature::{KeyPair, PqdsaKeyPair, ML_DSA_65_SIGNING};
 use ed25519_dalek::{SigningKey, VerifyingKey};
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha512;
@@ -26,8 +25,11 @@ pub const NEAR_COIN_TYPE: u32 = 397;
 /// The default NEAR HD derivation path used by `near-cli-rs` and most NEAR wallets.
 pub const NEAR_DEFAULT_HD_PATH: &str = "m/44'/397'/0'";
 
-/// ML-DSA-65 pubkey length
-const ML_DSA_65_PUBKEY_LEN: usize = 1952;
+/// ML-DSA-65 secret key length
+const ML_DSA_65_SECRET_KEY_LENGTH: usize = 4032;
+
+/// ML-DSA-65 public key length
+const ML_DSA_65_PUBLIC_KEY_LENGTH: usize = 1952;
 
 /// ML-DSA-65 pubkey handle in bytes
 const ML_DSA_65_PUBKEY_HANDLE: &[u8] = b"near:ml-dsa-65-pubkey-hash:v1";
@@ -77,27 +79,111 @@ pub fn derive_key_from_path(seed: &[u8], curve: Curve, path: &BIP32Path) -> Resu
     })
 }
 
-#[derive(Clone, PartialEq, Eq)]
-pub struct MlDsa65PublicKey(Box<[u8; ML_DSA_65_PUBKEY_LEN]>);
+#[derive(Clone)]
+pub struct Ed25519SecretKey([u8; 32]);
 
-impl MlDsa65PublicKey {
-    pub fn as_bytes(&self) -> &[u8; ML_DSA_65_PUBKEY_LEN] {
+impl Ed25519SecretKey {
+    pub fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
 
-    pub fn into_bytes(self) -> Box<[u8; ML_DSA_65_PUBKEY_LEN]> {
+    /// Returns the raw signing key.
+    ///
+    /// The returned bytes are **not** zeroized on drop - the caller takes over responsibility for
+    /// wiping them.
+    pub fn into_bytes(self) -> [u8; 32] {
+        self.0
+    }
+}
+
+impl AsRef<[u8]> for Ed25519SecretKey {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl Zeroize for Ed25519SecretKey {
+    fn zeroize(&mut self) {
+        self.0.zeroize();
+    }
+}
+
+impl Drop for Ed25519SecretKey {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
+// A marker trait to indicate that this struct will `Zeroize::zeroize` itself on `Drop`.
+impl ZeroizeOnDrop for Ed25519SecretKey {}
+
+#[derive(Clone)]
+pub struct MlDsa65SecretKey(Box<[u8; ML_DSA_65_SECRET_KEY_LENGTH]>);
+
+impl MlDsa65SecretKey {
+    pub fn as_bytes(&self) -> &[u8; ML_DSA_65_SECRET_KEY_LENGTH] {
+        &self.0
+    }
+
+    /// Returns the raw signing key.
+    ///
+    /// The returned bytes are **not** zeroized on drop - the caller takes over responsibility for
+    /// wiping them.
+    ///
+    /// Note that ML-DSA-65 is a 4032 byte-long key, so each call to this function will produce
+    /// a copy of this private key in heap.
+    pub fn into_bytes(self) -> Box<[u8; ML_DSA_65_SECRET_KEY_LENGTH]> {
+        self.0.clone()
+    }
+}
+
+impl AsRef<[u8]> for MlDsa65SecretKey {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref().as_ref()
+    }
+}
+
+impl Zeroize for MlDsa65SecretKey {
+    fn zeroize(&mut self) {
+        self.0.zeroize();
+    }
+}
+
+impl Drop for MlDsa65SecretKey {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
+// A marker trait to indicate that this struct will `Zeroize::zeroize` itself on `Drop`.
+impl ZeroizeOnDrop for MlDsa65SecretKey {}
+
+#[derive(Clone)]
+pub enum PrivateKey {
+    Ed25519(Ed25519SecretKey),
+    MlDsa65(MlDsa65SecretKey),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MlDsa65PublicKey(Box<[u8; ML_DSA_65_PUBLIC_KEY_LENGTH]>);
+
+impl MlDsa65PublicKey {
+    pub fn as_bytes(&self) -> &[u8; ML_DSA_65_PUBLIC_KEY_LENGTH] {
+        &self.0
+    }
+
+    pub fn into_bytes(self) -> Box<[u8; ML_DSA_65_PUBLIC_KEY_LENGTH]> {
         self.0
     }
 
+    /// Converts full 1952 bytes of MlDsa65PublicKey to public key handle in form of
+    /// `SHA3-256(b"near:ml-dsa-65-pubkey-hash:v1" || raw_public_key)`
     pub fn to_public_key_handle(&self) -> [u8; 32] {
-        let mut context = aws_lc_rs::digest::Context::new(&aws_lc_rs::digest::SHA3_256);
-        context.update(ML_DSA_65_PUBKEY_HANDLE);
-        context.update(self.0.as_ref());
-        context
-            .finish()
-            .as_ref()
-            .try_into()
-            .expect("SHA3_256 produces 32 bytes of output")
+        use sha3::Digest;
+
+        let mut digest = sha3::Sha3_256::new_with_prefix(ML_DSA_65_PUBKEY_HANDLE);
+        digest.update(self.0.as_ref());
+        digest.finalize().into()
     }
 }
 
@@ -117,14 +203,6 @@ impl TryFrom<&[u8]> for MlDsa65PublicKey {
             .try_into()
             .map(Self)
             .map_err(|_| Error::InvalidPublicKeyLength)
-    }
-}
-
-impl fmt::Debug for MlDsa65PublicKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("MlDsa65PublicKey")
-            .field(&format_args!("{:02x?}", self.to_public_key_handle()))
-            .finish()
     }
 }
 
@@ -172,28 +250,41 @@ impl Curve {
         }
     }
 
+    fn private_key(&self, key: &[u8; 32]) -> PrivateKey {
+        match self {
+            Self::Ed25519 => PrivateKey::Ed25519(Ed25519SecretKey(*key)),
+            Self::MlDsa65 => {
+                let mut keypair = libcrux_ml_dsa::ml_dsa_65::generate_key_pair(*key);
+
+                let mut sk = Box::new([0u8; ML_DSA_65_SECRET_KEY_LENGTH]);
+                sk.as_mut_slice()
+                    .copy_from_slice(keypair.signing_key.as_ref());
+                keypair.signing_key.as_ref_mut().zeroize();
+
+                PrivateKey::MlDsa65(MlDsa65SecretKey(sk))
+            }
+        }
+    }
+
     fn public_key(&self, key: &[u8; 32]) -> PublicKey {
         match self {
-            Curve::Ed25519 => {
+            Self::Ed25519 => {
+                // We don't clean-up the signing key...? Do we need to..? zeroize feature for ed
+                // dalek seems to help with that
                 let signing_key: SigningKey = SigningKey::from_bytes(key);
                 let public: VerifyingKey = signing_key.verifying_key();
                 let mut result = [0u8; 33];
                 result[1..].copy_from_slice(&public.to_bytes());
                 PublicKey::Ed25519(result)
             }
-            Curve::MlDsa65 => {
-                let key_pair = PqdsaKeyPair::from_seed(&ML_DSA_65_SIGNING, key)
-                    .expect("a 32-byte seed is always a valid ML-DSA-65 seed");
+            Self::MlDsa65 => {
+                // Is clone fine here? we are copying things and prbbly it shouldn't be ok but we
+                // zeroize signing key to not leave anything in mem...
+                let mut key_pair = libcrux_ml_dsa::ml_dsa_65::generate_key_pair(*key);
+                let pk = *key_pair.verification_key.as_ref();
+                key_pair.signing_key.as_ref_mut().zeroize();
 
-                let pk = key_pair
-                    .public_key()
-                    .as_ref()
-                    .to_vec()
-                    .as_slice()
-                    .try_into()
-                    .expect("ML-DSA-65 public keys are alway ML_DSA_65_PUBKEY_LEN bytes");
-
-                PublicKey::MlDsa65(pk)
+                PublicKey::MlDsa65(MlDsa65PublicKey(Box::new(pk)))
             }
         }
     }
@@ -227,12 +318,16 @@ impl Key {
         }
     }
 
+    pub fn secret_key(&self) -> PrivateKey {
+        self.curve.private_key(&self.key)
+    }
+
     /// Compute corresponding public key.
     pub fn public_key(&self) -> PublicKey {
         self.curve.public_key(&self.key)
     }
 
-    /// Derive a child key for the given index. For Ed25519, only hardened indices (>= 2^31) are valid.
+    /// Derive a child key for the given index. For Ed25519 and MlDsa65, only hardened indices (>= 2^31) are valid.
     ///
     /// # Example
     /// ```
