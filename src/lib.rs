@@ -272,8 +272,6 @@ impl Curve {
     fn public_key(&self, key: &[u8; 32]) -> PublicKey {
         match self {
             Self::Ed25519 => {
-                // We don't clean-up the signing key...? Do we need to..? zeroize feature for ed
-                // dalek seems to help with that
                 let signing_key: SigningKey = SigningKey::from_bytes(key);
                 let public: VerifyingKey = signing_key.verifying_key();
                 let mut result = [0u8; 33];
