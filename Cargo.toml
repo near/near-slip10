@@ -13,9 +13,7 @@ version = "0.4.8"
 
 [dependencies]
 ed25519-dalek = { version = "3", default-features = false }
-libcrux-ml-dsa = { version = "=0.0.10", default-features = false, features = [
-    "mldsa65",
-] }
+near-slip10-mldsa-native-sys = { path = "./mldsa-native-rs/", default-features = false }
 hmac = { version = "0.13", default-features = false }
 sha2 = { version = "0.11", default-features = false }
 sha3 = { version = "0.12", default-features = false }

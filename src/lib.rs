@@ -26,13 +26,13 @@ pub const NEAR_COIN_TYPE: u32 = 397;
 pub const NEAR_DEFAULT_HD_PATH: &str = "m/44'/397'/0'";
 
 /// ML-DSA-65 secret key length
-const ML_DSA_65_SECRET_KEY_LENGTH: usize = 4032;
+pub use near_slip10_mldsa_native_sys::ML_DSA_65_SECRET_KEY_LENGTH;
 
 /// ML-DSA-65 public key length
-const ML_DSA_65_PUBLIC_KEY_LENGTH: usize = 1952;
+pub use near_slip10_mldsa_native_sys::ML_DSA_65_PUBLIC_KEY_LENGTH;
 
 /// ML-DSA-65 pubkey handle in bytes
-const ML_DSA_65_PUBKEY_HANDLE: &[u8] = b"near:ml-dsa-65-pubkey-hash:v1";
+pub const ML_DSA_65_PUBKEY_HANDLE: &[u8] = b"near:ml-dsa-65-pubkey-hash:v1";
 
 /// Returns true if `index` is a hardened BIP-32 index (>= 2^31).
 pub const fn is_hardened(index: u32) -> bool {
@@ -254,14 +254,17 @@ impl Curve {
         match self {
             Self::Ed25519 => PrivateKey::Ed25519(Ed25519SecretKey(*key)),
             Self::MlDsa65 => {
-                let mut keypair = libcrux_ml_dsa::ml_dsa_65::generate_key_pair(*key);
+                let mut secret_key = [0u8; ML_DSA_65_SECRET_KEY_LENGTH];
+                let mut public_key = [0u8; ML_DSA_65_PUBLIC_KEY_LENGTH];
 
-                let mut sk = Box::new([0u8; ML_DSA_65_SECRET_KEY_LENGTH]);
-                sk.as_mut_slice()
-                    .copy_from_slice(keypair.signing_key.as_ref());
-                keypair.signing_key.as_ref_mut().zeroize();
+                near_slip10_mldsa_native_sys::ml_dsa_65_keypair_from_seed(key, &mut public_key, &mut secret_key)
+                    .expect(
+                        "ml-dsa-65 key generation is supplied with appropriate arguments shouldn't fail",
+                    );
 
-                PrivateKey::MlDsa65(MlDsa65SecretKey(sk))
+                public_key.zeroize();
+
+                PrivateKey::MlDsa65(MlDsa65SecretKey(Box::new(secret_key)))
             }
         }
     }
@@ -278,13 +281,17 @@ impl Curve {
                 PublicKey::Ed25519(result)
             }
             Self::MlDsa65 => {
-                // Is clone fine here? we are copying things and prbbly it shouldn't be ok but we
-                // zeroize signing key to not leave anything in mem...
-                let mut key_pair = libcrux_ml_dsa::ml_dsa_65::generate_key_pair(*key);
-                let pk = *key_pair.verification_key.as_ref();
-                key_pair.signing_key.as_ref_mut().zeroize();
+                let mut secret_key = [0u8; ML_DSA_65_SECRET_KEY_LENGTH];
+                let mut public_key = [0u8; ML_DSA_65_PUBLIC_KEY_LENGTH];
 
-                PublicKey::MlDsa65(MlDsa65PublicKey(Box::new(pk)))
+                near_slip10_mldsa_native_sys::ml_dsa_65_keypair_from_seed(key, &mut public_key, &mut secret_key)
+                    .expect(
+                        "ml-dsa-65 key generation is supplied with appropriate arguments shouldn't fail",
+                    );
+
+                secret_key.zeroize();
+
+                PublicKey::MlDsa65(MlDsa65PublicKey(Box::new(public_key)))
             }
         }
     }

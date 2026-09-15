@@ -1,0 +1,15 @@
+[package]
+authors = ["NEAR DevEx team"]
+categories = ["cryptography", "no-std"]
+description = "Low-level bindings for ML-DSA key generation on top of mldsa-native library"
+edition = "2024"
+license = "MIT"
+name = "near-slip10-mldsa-native-sys"
+repository = "https://github.com/near/near-slip10"
+links = "mldsa-native"
+rust-version = "1.85"
+version = "0.1.0"
+
+[build-dependencies]
+bindgen = "0.72.1"
+cc = "1.4.5"
