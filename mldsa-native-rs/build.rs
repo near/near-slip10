@@ -17,6 +17,14 @@ fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let src = manifest_dir.join(ML_DSA_NATIVE_DIR);
 
+    let entry = src.join("mldsa_native.c");
+    if !entry.exists() {
+        panic!(
+            "mldsa-native sources not found at {}.\nThe C library is a git submodule; run:\n\tgit submodule update --init",
+            src.display()
+        );
+    }
+
     // cc does not track sources. A directory is scanned recursively.
     println!("cargo:rerun-if-changed={}", src.display());
 

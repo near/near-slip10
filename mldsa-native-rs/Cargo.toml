@@ -9,6 +9,13 @@ repository = "https://github.com/near/near-slip10"
 links = "mldsa-native"
 rust-version = "1.85"
 version = "0.1.0"
+include = [
+    "build.rs",
+    "src/**",
+    "wasm-shim/**",
+    "mldsa-native/mldsa/**",
+    "mldsa-native/LICENSE",
+]
 
 [build-dependencies]
 bindgen = "0.72.1"

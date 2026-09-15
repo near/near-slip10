@@ -19,6 +19,8 @@ jobs:
     runs-on: warp-ubuntu-latest-x64-4x
     steps:
       - uses: actions/checkout@v7
+        with:
+          submodules: true
 
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
