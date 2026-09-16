@@ -29,7 +29,10 @@ fn main() {
     println!("cargo:rerun-if-changed={}", src.display());
 
     compile_c(&src, &manifest_dir);
+    #[cfg(feature = "buildtime_bindgen")]
     generate_bindings(&src, &out_dir);
+    #[cfg(not(feature = "buildtime_bindgen"))]
+    copy_bindings(&manifest_dir, &out_dir);
 }
 
 fn compile_c(src: &Path, manifest_dir: &Path) {
@@ -49,31 +52,18 @@ fn compile_c(src: &Path, manifest_dir: &Path) {
     if env::var("CARGO_CFG_TARGET_ARCH").unwrap() == "wasm32"
         && env::var("CARGO_CFG_TARGET_OS").unwrap() == "unknown"
     {
-        // For some reason wasm builds don't see memcpy and memset functions, so we need to include a
-        // shim header exposing those functions.
+        // wasm32-unknown-unknown has no libc, so `<string.h>` doesn't exist and `compiler_builtings`
+        // supplies the symbols, so we need to include a shim header exposing `memcpy` and `memset`.
         build.include(manifest_dir.join("wasm-shim"));
     }
 
     // TODO: find arch and pass arch-specific optimization flags.
-    println!("cargo:rerun-if-env-changed=MLDSA_NATIVE_PORTABLE");
-    let native = env::var_os("MLDSA_NATIVE_PORTABLE").is_some();
-    if native {
-        build
-            .define("MLD_CONFIG_USE_NATIVE_BACKEND_ARITH", None)
-            .define("MLD_CONFIG_USE_NATIVE_BACKEND_FIPS202", None)
-            // The native asm file includes `src/common.h`, so it needs the same `-I`/`-D` flags;
-            // cc applies them to every file in the build.
-            .file(src.join("mldsa_native_asm.S"));
-    }
-    println!(
-        "cargo:warning=mldsa-native backend: {}",
-        if native { "native" } else { "portable C" }
-    );
 
     // Emits rustc-link-lib=static=mldsa_native and rustc-link-search=OUT_DIR.
     build.compile("mldsa_native");
 }
 
+#[cfg(feature = "buildtime_bindgen")]
 fn generate_bindings(src: &Path, out_dir: &Path) {
     // The bindgen::Builder is the main entry point
     // to bindgen
@@ -102,7 +92,7 @@ fn generate_bindings(src: &Path, out_dir: &Path) {
     if env::var("CARGO_CFG_TARGET_ARCH").unwrap() == "wasm32"
         && env::var("CARGO_CFG_TARGET_OS").unwrap() == "unknown"
     {
-        // For some reason, the rust bindgen in wasm builds doesn't expose linked `mldsa65_keypair_internal`,
+        // clang doesn't doesn't expose linked `mldsa65_keypair_internal`,
         // so we need to pass an visibility clang arg to set this visibility back to default.
         builder = builder.clang_arg("-fvisibility=default");
     }
@@ -112,4 +102,11 @@ fn generate_bindings(src: &Path, out_dir: &Path) {
         .expect("bindgen failed on mldsa_native.h")
         .write_to_file(out_dir.join("bindings.rs"))
         .expect("couldn't write bindings.rs");
+}
+
+#[cfg(not(feature = "buildtime_bindgen"))]
+fn copy_bindings(manifest_dir: &Path, out_dir: &Path) {
+    let commited_binding = manifest_dir.join("bindings/mldsa65.rs");
+    println!("cargo:rerun-if-changed={}", commited_binding.display());
+    std::fs::copy(&commited_binding, out_dir.join("bindings.rs")).expect("copy commited bindings");
 }

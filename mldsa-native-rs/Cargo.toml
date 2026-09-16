@@ -15,8 +15,14 @@ include = [
     "wasm-shim/**",
     "mldsa-native/mldsa/**",
     "mldsa-native/LICENSE",
+    "bindings/**",
 ]
 
 [build-dependencies]
-bindgen = "0.72.1"
+bindgen = { version = "0.72.1", optional = true }
 cc = "1.4.5"
+
+[features]
+default = []
+# Generate bindings during builtime with bindgen
+buildtime_bindgen = ["bindgen"]
