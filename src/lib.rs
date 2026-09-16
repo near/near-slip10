@@ -254,7 +254,7 @@ impl Curve {
         match self {
             Self::Ed25519 => PrivateKey::Ed25519(Ed25519SecretKey(*key)),
             Self::MlDsa65 => {
-                let mut secret_key = [0u8; ML_DSA_65_SECRET_KEY_LENGTH];
+                let mut secret_key = Box::new([0u8; ML_DSA_65_SECRET_KEY_LENGTH]);
                 let mut public_key = [0u8; ML_DSA_65_PUBLIC_KEY_LENGTH];
 
                 near_slip10_mldsa_native_sys::ml_dsa_65_keypair_from_seed(key, &mut public_key, &mut secret_key)
@@ -262,9 +262,7 @@ impl Curve {
                         "ml-dsa-65 key generation is supplied with appropriate arguments shouldn't fail",
                     );
 
-                public_key.zeroize();
-
-                PrivateKey::MlDsa65(MlDsa65SecretKey(Box::new(secret_key)))
+                PrivateKey::MlDsa65(MlDsa65SecretKey(secret_key))
             }
         }
     }
