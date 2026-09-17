@@ -11,6 +11,9 @@ readme = "README.md"
 rust-version = "1.85"
 version = "0.4.8"
 
+[workspace]
+members = [".", "mldsa-native-rs"]
+
 [dependencies]
 ed25519-dalek = { version = "3", default-features = false, features = [
     "zeroize",
