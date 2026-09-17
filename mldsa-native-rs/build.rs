@@ -28,14 +28,14 @@ fn main() {
     // cc does not track sources. A directory is scanned recursively.
     println!("cargo:rerun-if-changed={}", src.display());
 
-    compile_c(&src, &manifest_dir);
+    compile_c(&src, &manifest_dir, &out_dir);
     #[cfg(feature = "buildtime_bindgen")]
     generate_bindings(&src, &out_dir);
     #[cfg(not(feature = "buildtime_bindgen"))]
     copy_bindings(&manifest_dir, &out_dir);
 }
 
-fn compile_c(src: &Path, manifest_dir: &Path) {
+fn compile_c(src: &Path, manifest_dir: &Path, out_dir: &Path) {
     let mut build = cc::Build::new();
 
     build
@@ -59,8 +59,35 @@ fn compile_c(src: &Path, manifest_dir: &Path) {
 
     // TODO: find arch and pass arch-specific optimization flags.
 
-    // Emits rustc-link-lib=static=mldsa_native and rustc-link-search=OUT_DIR.
-    build.compile("mldsa_native");
+    if env::var("CARGO_CFG_TARGET_ARCH").unwrap() == "wasm32" {
+        let objects = build.compile_intermediates();
+        write_gnu_archive(&out_dir.join("libmldsa_native.a"), &objects);
+        println!("cargo:rustc-link-search=native={}", out_dir.display());
+        println!("cargo:rustc-link-lib=static=mldsa_native");
+    } else {
+        // Emits rustc-link-lib=static=mldsa_native and rustc-link-search=OUT_DIR.
+        build.compile("mldsa_native");
+    }
+}
+
+fn write_gnu_archive(dst: &Path, objects: &[PathBuf]) {
+    use ar_archive_writer::{
+        ArchiveKind, DEFAULT_OBJECT_READER, NewArchiveMember, write_archive_to_stream,
+    };
+    let buffers: Vec<Vec<u8>> = objects.iter().map(|o| std::fs::read(o).unwrap()).collect();
+    let members: Vec<NewArchiveMember> = buffers
+        .iter()
+        .zip(objects)
+        .map(|(buf, path)| {
+            NewArchiveMember::new(
+                buf.as_slice(),
+                &DEFAULT_OBJECT_READER,
+                path.file_name().unwrap().to_string_lossy().into_owned(),
+            )
+        })
+        .collect();
+    let mut file = std::fs::File::create(dst).unwrap();
+    write_archive_to_stream(&mut file, &members, ArchiveKind::Gnu, false, false).unwrap();
 }
 
 #[cfg(feature = "buildtime_bindgen")]

@@ -21,6 +21,7 @@ include = [
 [build-dependencies]
 bindgen = { version = "0.72.1", optional = true }
 cc = "1.4.5"
+ar_archive_writer = "0.4.2"
 
 [features]
 default = []
