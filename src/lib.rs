@@ -32,7 +32,7 @@ pub use near_slip10_mldsa_native_sys::ML_DSA_65_SECRET_KEY_LENGTH;
 pub use near_slip10_mldsa_native_sys::ML_DSA_65_PUBLIC_KEY_LENGTH;
 
 /// ML-DSA-65 pubkey handle in bytes
-pub const ML_DSA_65_PUBKEY_HANDLE: &[u8] = b"near:ml-dsa-65-pubkey-hash:v1";
+pub const ML_DSA_65_PUBKEY_HASH_PREFIX: &[u8] = b"near:ml-dsa-65-pubkey-hash:v1";
 
 /// Returns true if `index` is a hardened BIP-32 index (>= 2^31).
 pub const fn is_hardened(index: u32) -> bool {
@@ -79,7 +79,6 @@ pub fn derive_key_from_path(seed: &[u8], curve: Curve, path: &BIP32Path) -> Resu
     })
 }
 
-#[derive(Clone)]
 pub struct Ed25519SecretKey([u8; 32]);
 
 impl Ed25519SecretKey {
@@ -117,7 +116,6 @@ impl Drop for Ed25519SecretKey {
 // A marker trait to indicate that this struct will `Zeroize::zeroize` itself on `Drop`.
 impl ZeroizeOnDrop for Ed25519SecretKey {}
 
-#[derive(Clone)]
 pub struct MlDsa65SecretKey(Box<[u8; ML_DSA_65_SECRET_KEY_LENGTH]>);
 
 impl MlDsa65SecretKey {
@@ -158,10 +156,25 @@ impl Drop for MlDsa65SecretKey {
 // A marker trait to indicate that this struct will `Zeroize::zeroize` itself on `Drop`.
 impl ZeroizeOnDrop for MlDsa65SecretKey {}
 
-#[derive(Clone)]
 pub enum PrivateKey {
     Ed25519(Ed25519SecretKey),
     MlDsa65(MlDsa65SecretKey),
+}
+
+impl PrivateKey {
+    pub fn unwrap_as_ed25519(self) -> Ed25519SecretKey {
+        match self {
+            Self::Ed25519(secret_key) => secret_key,
+            Self::MlDsa65(_) => panic!("Expected Ed25519 secret key!"),
+        }
+    }
+
+    pub fn unwrap_as_ml_dsa_65(self) -> MlDsa65SecretKey {
+        match self {
+            Self::Ed25519(_) => panic!("Expected MlDsa65 secret key!"),
+            Self::MlDsa65(secret_key) => secret_key,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -181,7 +194,7 @@ impl MlDsa65PublicKey {
     pub fn to_public_key_handle(&self) -> [u8; 32] {
         use sha3::Digest;
 
-        let mut digest = sha3::Sha3_256::new_with_prefix(ML_DSA_65_PUBKEY_HANDLE);
+        let mut digest = sha3::Sha3_256::new_with_prefix(ML_DSA_65_PUBKEY_HASH_PREFIX);
         digest.update(self.0.as_ref());
         digest.finalize().into()
     }
@@ -215,15 +228,15 @@ pub enum PublicKey {
 impl PublicKey {
     pub fn unwrap_as_ed25519(self) -> [u8; 33] {
         match self {
-            PublicKey::Ed25519(pub_key) => pub_key,
-            PublicKey::MlDsa65(_) => panic!(),
+            Self::Ed25519(pub_key) => pub_key,
+            Self::MlDsa65(_) => panic!("Expected Ed25519 public key!"),
         }
     }
 
     pub fn unwrap_as_ml_dsa_65(self) -> MlDsa65PublicKey {
         match self {
-            PublicKey::Ed25519(_) => panic!(),
-            PublicKey::MlDsa65(pub_key) => pub_key,
+            Self::Ed25519(_) => panic!("Expected MlDsa65 public key!"),
+            Self::MlDsa65(pub_key) => pub_key,
         }
     }
 }
