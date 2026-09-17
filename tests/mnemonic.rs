@@ -2,7 +2,7 @@
 
 use core::str::FromStr;
 use hex::FromHex;
-use near_slip10::{derive_key_from_mnemonic, BIP32Path, NEAR_DEFAULT_HD_PATH};
+use near_slip10::{derive_key_from_mnemonic, BIP32Path, Curve, NEAR_DEFAULT_HD_PATH};
 
 /// Standard BIP-39 test mnemonic from the BIP-39 spec.
 const TEST_MNEMONIC: &str =
@@ -11,7 +11,7 @@ const TEST_MNEMONIC: &str =
 #[test]
 fn near_default_path_from_well_known_mnemonic() {
     let path = BIP32Path::from_str(NEAR_DEFAULT_HD_PATH).unwrap();
-    let key = derive_key_from_mnemonic(TEST_MNEMONIC, "", &path).unwrap();
+    let key = derive_key_from_mnemonic(TEST_MNEMONIC, "", Curve::Ed25519, &path).unwrap();
 
     // Pinned vector for the standard BIP-39 "abandon abandon ... about" mnemonic
     // with empty passphrase and NEAR's default path m/44'/397'/0'.
@@ -24,7 +24,7 @@ fn near_default_path_from_well_known_mnemonic() {
     // SLIP-10's 33-byte `00`-prefixed form. Pinned to catch any regression in
     // public-key computation end-to-end from the mnemonic.
     let expected_public_hex = "005510e2b44cae6eb807e3e0e45d579dda058c274abcba15e5cb84636f5d1ee412";
-    let public = key.public_key();
+    let public = key.public_key().unwrap_as_ed25519();
     assert_eq!(public.len(), 33);
     assert_eq!(
         public[0], 0x00,
@@ -39,8 +39,9 @@ fn near_default_path_from_well_known_mnemonic() {
 #[test]
 fn passphrase_changes_derived_key() {
     let path = BIP32Path::from_str(NEAR_DEFAULT_HD_PATH).unwrap();
-    let no_pass = derive_key_from_mnemonic(TEST_MNEMONIC, "", &path).unwrap();
-    let with_pass = derive_key_from_mnemonic(TEST_MNEMONIC, "TREZOR", &path).unwrap();
+    let no_pass = derive_key_from_mnemonic(TEST_MNEMONIC, "", Curve::Ed25519, &path).unwrap();
+    let with_pass =
+        derive_key_from_mnemonic(TEST_MNEMONIC, "TREZOR", Curve::Ed25519, &path).unwrap();
     assert_ne!(no_pass.key, with_pass.key);
 }
 
@@ -48,5 +49,5 @@ fn passphrase_changes_derived_key() {
 fn invalid_mnemonic_returns_error() {
     let phrase = "not a valid mnemonic phrase at all";
     let path = BIP32Path::from_str(NEAR_DEFAULT_HD_PATH).unwrap();
-    assert!(derive_key_from_mnemonic(phrase, "", &path).is_err());
+    assert!(derive_key_from_mnemonic(phrase, "", Curve::Ed25519, &path).is_err());
 }

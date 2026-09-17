@@ -11,48 +11,30 @@ readme = "README.md"
 rust-version = "1.85"
 version = "0.4.8"
 
-[dependencies.ed25519-dalek]
-default-features = false
-version = "3"
+[workspace]
+members = [".", "mldsa-native-rs"]
 
-[dependencies.hmac]
-default-features = false
-version = "0.13"
+[dependencies]
+ed25519-dalek = { version = "3", default-features = false, features = [
+    "zeroize",
+] }
+near-slip10-mldsa-native-sys = { version = "0.1", path = "./mldsa-native-rs/", default-features = false }
+hmac = { version = "0.13", default-features = false }
+sha2 = { version = "0.11", default-features = false }
+sha3 = { version = "0.12", default-features = false }
+zeroize = { version = "1.8", default-features = false, features = ["derive"] }
+bip39 = { version = "2", default-features = false, features = [
+    "alloc",
+], optional = true }
+serde = { version = "1", default-features = false, optional = true }
 
-[dependencies.sha2]
-default-features = false
-version = "0.11"
-
-[dependencies.zeroize]
-default-features = false
-features = ["derive"]
-version = "1.8"
-
-[dependencies.bip39]
-default-features = false
-features = ["alloc"]
-optional = true
-version = "2"
-
-[dependencies.serde]
-default-features = false
-optional = true
-version = "1"
+[dev-dependencies]
+hex = { version = "0.4" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1" }
+proptest = { version = "1" }
 
 [features]
 default = []
 mnemonic = ["dep:bip39"]
 serde = ["dep:serde", "serde/alloc"]
-
-[dev-dependencies.hex]
-version = "0.4"
-
-[dev-dependencies.serde]
-features = ["derive"]
-version = "1"
-
-[dev-dependencies.serde_json]
-version = "1"
-
-[dev-dependencies.proptest]
-version = "1"

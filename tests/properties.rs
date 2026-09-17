@@ -62,7 +62,7 @@ proptest! {
         let key = derive_key_from_path(&[], Curve::Ed25519, &path)
             .expect("empty seed should derive without error");
         prop_assert_eq!(key.key.len(), 32);
-        prop_assert_eq!(key.public_key().len(), 33);
+        prop_assert_eq!(key.public_key().unwrap_as_ed25519().len(), 33);
     }
 
     /// (d) `harden`/`unharden` round-trip for any non-hardened index, and the

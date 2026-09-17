@@ -7,7 +7,7 @@ pub mod path;
 
 pub use crate::path::BIP32Path;
 
-use alloc::vec::Vec;
+use alloc::boxed::Box;
 use core::convert::TryInto;
 use core::fmt;
 
@@ -24,6 +24,15 @@ pub const NEAR_COIN_TYPE: u32 = 397;
 
 /// The default NEAR HD derivation path used by `near-cli-rs` and most NEAR wallets.
 pub const NEAR_DEFAULT_HD_PATH: &str = "m/44'/397'/0'";
+
+/// ML-DSA-65 secret key length
+pub use near_slip10_mldsa_native_sys::ML_DSA_65_SECRET_KEY_LENGTH;
+
+/// ML-DSA-65 public key length
+pub use near_slip10_mldsa_native_sys::ML_DSA_65_PUBLIC_KEY_LENGTH;
+
+/// ML-DSA-65 pubkey handle in bytes
+pub const ML_DSA_65_PUBKEY_HASH_PREFIX: &[u8] = b"near:ml-dsa-65-pubkey-hash:v1";
 
 /// Returns true if `index` is a hardened BIP-32 index (>= 2^31).
 pub const fn is_hardened(index: u32) -> bool {
@@ -43,12 +52,14 @@ pub const fn unharden(index: u32) -> u32 {
 #[derive(Debug)]
 pub enum Error {
     InvalidIndex,
+    InvalidPublicKeyLength,
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::InvalidIndex => "Invalid index provided".fmt(f),
+            Error::InvalidPublicKeyLength => "Invalid public key length".fmt(f),
         }
     }
 }
@@ -68,33 +79,228 @@ pub fn derive_key_from_path(seed: &[u8], curve: Curve, path: &BIP32Path) -> Resu
     })
 }
 
+pub struct Ed25519SecretKey([u8; 32]);
+
+impl Ed25519SecretKey {
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+
+    /// Returns the raw signing key.
+    ///
+    /// The returned bytes are **not** zeroized on drop - the caller takes over responsibility for
+    /// wiping them.
+    pub fn into_bytes(self) -> [u8; 32] {
+        self.0
+    }
+}
+
+impl AsRef<[u8]> for Ed25519SecretKey {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl Zeroize for Ed25519SecretKey {
+    fn zeroize(&mut self) {
+        self.0.zeroize();
+    }
+}
+
+impl Drop for Ed25519SecretKey {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
+// A marker trait to indicate that this struct will `Zeroize::zeroize` itself on `Drop`.
+impl ZeroizeOnDrop for Ed25519SecretKey {}
+
+pub struct MlDsa65SecretKey(Box<[u8; ML_DSA_65_SECRET_KEY_LENGTH]>);
+
+impl MlDsa65SecretKey {
+    pub fn as_bytes(&self) -> &[u8; ML_DSA_65_SECRET_KEY_LENGTH] {
+        &self.0
+    }
+
+    /// Returns the raw signing key.
+    ///
+    /// The returned bytes are **not** zeroized on drop - the caller takes over responsibility for
+    /// wiping them.
+    ///
+    /// Note that ML-DSA-65 is a 4032 byte-long key, so each call to this function will produce
+    /// a copy of this private key in heap.
+    pub fn into_bytes(self) -> Box<[u8; ML_DSA_65_SECRET_KEY_LENGTH]> {
+        self.0.clone()
+    }
+}
+
+impl AsRef<[u8]> for MlDsa65SecretKey {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref().as_ref()
+    }
+}
+
+impl Zeroize for MlDsa65SecretKey {
+    fn zeroize(&mut self) {
+        self.0.zeroize();
+    }
+}
+
+impl Drop for MlDsa65SecretKey {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
+// A marker trait to indicate that this struct will `Zeroize::zeroize` itself on `Drop`.
+impl ZeroizeOnDrop for MlDsa65SecretKey {}
+
+pub enum PrivateKey {
+    Ed25519(Ed25519SecretKey),
+    MlDsa65(MlDsa65SecretKey),
+}
+
+impl PrivateKey {
+    pub fn unwrap_as_ed25519(self) -> Ed25519SecretKey {
+        match self {
+            Self::Ed25519(secret_key) => secret_key,
+            Self::MlDsa65(_) => panic!("Expected Ed25519 secret key!"),
+        }
+    }
+
+    pub fn unwrap_as_ml_dsa_65(self) -> MlDsa65SecretKey {
+        match self {
+            Self::Ed25519(_) => panic!("Expected MlDsa65 secret key!"),
+            Self::MlDsa65(secret_key) => secret_key,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MlDsa65PublicKey(Box<[u8; ML_DSA_65_PUBLIC_KEY_LENGTH]>);
+
+impl MlDsa65PublicKey {
+    pub fn as_bytes(&self) -> &[u8; ML_DSA_65_PUBLIC_KEY_LENGTH] {
+        &self.0
+    }
+
+    pub fn into_bytes(self) -> Box<[u8; ML_DSA_65_PUBLIC_KEY_LENGTH]> {
+        self.0
+    }
+
+    /// Converts full 1952 bytes of MlDsa65PublicKey to public key handle in form of
+    /// `SHA3-256(b"near:ml-dsa-65-pubkey-hash:v1" || raw_public_key)`
+    pub fn to_public_key_handle(&self) -> [u8; 32] {
+        use sha3::Digest;
+
+        let mut digest = sha3::Sha3_256::new_with_prefix(ML_DSA_65_PUBKEY_HASH_PREFIX);
+        digest.update(self.0.as_ref());
+        digest.finalize().into()
+    }
+}
+
+impl AsRef<[u8]> for MlDsa65PublicKey {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl TryFrom<&[u8]> for MlDsa65PublicKey {
+    type Error = Error;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        value
+            .to_vec()
+            .into_boxed_slice()
+            .try_into()
+            .map(Self)
+            .map_err(|_| Error::InvalidPublicKeyLength)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum PublicKey {
+    Ed25519([u8; 33]),
+    MlDsa65(MlDsa65PublicKey),
+}
+
+impl PublicKey {
+    pub fn unwrap_as_ed25519(self) -> [u8; 33] {
+        match self {
+            Self::Ed25519(pub_key) => pub_key,
+            Self::MlDsa65(_) => panic!("Expected Ed25519 public key!"),
+        }
+    }
+
+    pub fn unwrap_as_ml_dsa_65(self) -> MlDsa65PublicKey {
+        match self {
+            Self::Ed25519(_) => panic!("Expected MlDsa65 public key!"),
+            Self::MlDsa65(pub_key) => pub_key,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub enum Curve {
     Ed25519,
+    MlDsa65,
 }
 
 impl Curve {
     fn seedkey(&self) -> &[u8] {
         match self {
             Curve::Ed25519 => b"ed25519 seed",
+            Curve::MlDsa65 => b"ML-DSA-65 seed",
         }
     }
 
     fn is_valid_child_index(&self, index: u32) -> bool {
         match self {
             Curve::Ed25519 => index >= HARDENED,
+            Curve::MlDsa65 => index >= HARDENED,
         }
     }
 
-    fn public_key(&self, key: &[u8; 32]) -> [u8; 33] {
+    fn private_key(&self, key: &[u8; 32]) -> PrivateKey {
         match self {
-            Curve::Ed25519 => {
+            Self::Ed25519 => PrivateKey::Ed25519(Ed25519SecretKey(*key)),
+            Self::MlDsa65 => {
+                let mut secret_key = Box::new([0u8; ML_DSA_65_SECRET_KEY_LENGTH]);
+                let mut public_key = [0u8; ML_DSA_65_PUBLIC_KEY_LENGTH];
+
+                near_slip10_mldsa_native_sys::ml_dsa_65_keypair_from_seed(key, &mut public_key, &mut secret_key)
+                    .expect(
+                        "ml-dsa-65 key generation is supplied with appropriate arguments shouldn't fail",
+                    );
+
+                PrivateKey::MlDsa65(MlDsa65SecretKey(secret_key))
+            }
+        }
+    }
+
+    fn public_key(&self, key: &[u8; 32]) -> PublicKey {
+        match self {
+            Self::Ed25519 => {
                 let signing_key: SigningKey = SigningKey::from_bytes(key);
                 let public: VerifyingKey = signing_key.verifying_key();
                 let mut result = [0u8; 33];
                 result[1..].copy_from_slice(&public.to_bytes());
-                result
+                PublicKey::Ed25519(result)
+            }
+            Self::MlDsa65 => {
+                let mut secret_key = [0u8; ML_DSA_65_SECRET_KEY_LENGTH];
+                let mut public_key = [0u8; ML_DSA_65_PUBLIC_KEY_LENGTH];
+
+                near_slip10_mldsa_native_sys::ml_dsa_65_keypair_from_seed(key, &mut public_key, &mut secret_key)
+                    .expect(
+                        "ml-dsa-65 key generation is supplied with appropriate arguments shouldn't fail",
+                    );
+
+                secret_key.zeroize();
+
+                PublicKey::MlDsa65(MlDsa65PublicKey(Box::new(public_key)))
             }
         }
     }
@@ -128,12 +334,16 @@ impl Key {
         }
     }
 
+    pub fn secret_key(&self) -> PrivateKey {
+        self.curve.private_key(&self.key)
+    }
+
     /// Compute corresponding public key.
-    pub fn public_key(&self) -> [u8; 33] {
+    pub fn public_key(&self) -> PublicKey {
         self.curve.public_key(&self.key)
     }
 
-    /// Derive a child key for the given index. For Ed25519, only hardened indices (>= 2^31) are valid.
+    /// Derive a child key for the given index. For Ed25519 and MlDsa65, only hardened indices (>= 2^31) are valid.
     ///
     /// # Example
     /// ```
@@ -167,16 +377,13 @@ impl Key {
     }
 
     fn get_intermediary(&self, index: u32) -> [u8; 64] {
-        let mut data = Vec::new();
-        if index < HARDENED {
-            data.extend_from_slice(&self.curve.public_key(&self.key));
-        } else {
-            data.push(0u8);
-            self.key.iter().for_each(|i| data.push(*i));
-        }
-        index.to_be_bytes().iter().for_each(|i| data.push(*i));
+        let mut data = [0u8; 37]; // 0x00 || k_par || ser32(i)
+        data[1..33].copy_from_slice(&self.key);
+        data[33..].copy_from_slice(&index.to_be_bytes());
 
-        hmac_sha512(&self.chain_code, &data)
+        let inter = hmac_sha512(&self.chain_code, &data);
+        data.zeroize();
+        inter
     }
 }
 
@@ -188,12 +395,39 @@ fn hmac_sha512(key: &[u8], data: &[u8]) -> [u8; 64] {
 }
 
 #[cfg(feature = "mnemonic")]
-pub use mnemonic_impl::{derive_key_from_mnemonic, MnemonicError};
+pub use mnemonic_impl::{
+    derive_ed25519_key_from_mnemonic, derive_key_from_mnemonic, derive_ml_dsa_65_key_from_mnemonic,
+    MnemonicError,
+};
 
 #[cfg(feature = "mnemonic")]
 mod mnemonic_impl {
     use crate::{derive_key_from_path, BIP32Path, Curve, Error, Key};
     use core::fmt;
+
+    /// Derive an MlDsa65 SLIP-10 key from a BIP-39 mnemonic phrase and HD path.
+    ///
+    /// `passphrase` is the optional BIP-39 passphrase ("25th word"). Use `""` for none.
+    ///
+    /// # Example
+    /// ```
+    /// use near_slip10::{derive_ml_dsa_65_key_from_mnemonic, BIP32Path, NEAR_DEFAULT_HD_PATH};
+    /// use core::str::FromStr;
+    ///
+    /// let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    /// let path = BIP32Path::from_str(NEAR_DEFAULT_HD_PATH).unwrap();
+    /// let key = derive_ml_dsa_65_key_from_mnemonic(phrase, "", &path).unwrap();
+    /// let pub_key = key.public_key().unwrap_as_ml_dsa_65();
+    /// assert_eq!(pub_key.as_bytes().len(), 1952);
+    ///
+    /// ```
+    pub fn derive_ml_dsa_65_key_from_mnemonic(
+        phrase: &str,
+        passphrase: &str,
+        path: &BIP32Path,
+    ) -> Result<Key, MnemonicError> {
+        derive_key_from_mnemonic(phrase, passphrase, Curve::MlDsa65, path)
+    }
 
     /// Derive an Ed25519 SLIP-10 key from a BIP-39 mnemonic phrase and HD path.
     ///
@@ -201,22 +435,45 @@ mod mnemonic_impl {
     ///
     /// # Example
     /// ```
-    /// use near_slip10::{derive_key_from_mnemonic, BIP32Path, NEAR_DEFAULT_HD_PATH};
+    /// use near_slip10::{derive_ed25519_key_from_mnemonic, BIP32Path, NEAR_DEFAULT_HD_PATH};
     /// use core::str::FromStr;
     ///
     /// let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
     /// let path = BIP32Path::from_str(NEAR_DEFAULT_HD_PATH).unwrap();
-    /// let key = derive_key_from_mnemonic(phrase, "", &path).unwrap();
+    /// let key = derive_ed25519_key_from_mnemonic(phrase, "", &path).unwrap();
+    /// assert_eq!(key.key.len(), 32);
+    /// ```
+    pub fn derive_ed25519_key_from_mnemonic(
+        phrase: &str,
+        passphrase: &str,
+        path: &BIP32Path,
+    ) -> Result<Key, MnemonicError> {
+        derive_key_from_mnemonic(phrase, passphrase, Curve::Ed25519, path)
+    }
+
+    /// Derive a specified SLIP-10 key from a BIP-39 mnemonic phrase and HD path.
+    ///
+    /// `passphrase` is the optional BIP-39 passphrase ("25th word"). Use `""` for none.
+    ///
+    /// # Example
+    /// ```
+    /// use near_slip10::{derive_key_from_mnemonic, BIP32Path, Curve, NEAR_DEFAULT_HD_PATH};
+    /// use core::str::FromStr;
+    ///
+    /// let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    /// let path = BIP32Path::from_str(NEAR_DEFAULT_HD_PATH).unwrap();
+    /// let key = derive_key_from_mnemonic(phrase, "", Curve::Ed25519, &path).unwrap();
     /// assert_eq!(key.key.len(), 32);
     /// ```
     pub fn derive_key_from_mnemonic(
         phrase: &str,
         passphrase: &str,
+        curve: Curve,
         path: &BIP32Path,
     ) -> Result<Key, MnemonicError> {
         let mnemonic = bip39::Mnemonic::parse(phrase).map_err(MnemonicError::InvalidMnemonic)?;
         let seed = mnemonic.to_seed(passphrase);
-        derive_key_from_path(&seed, Curve::Ed25519, path).map_err(MnemonicError::Derivation)
+        derive_key_from_path(&seed, curve, path).map_err(MnemonicError::Derivation)
     }
 
     /// Errors from [`derive_key_from_mnemonic`].

@@ -1,0 +1,29 @@
+[package]
+authors = ["NEAR DevEx team"]
+categories = ["cryptography", "no-std"]
+description = "Low-level bindings for ML-DSA key generation on top of mldsa-native library"
+edition = "2024"
+license = "MIT"
+name = "near-slip10-mldsa-native-sys"
+repository = "https://github.com/near/near-slip10"
+links = "mldsa-native"
+rust-version = "1.85"
+version = "0.1.0"
+include = [
+    "build.rs",
+    "src/**",
+    "wasm-shim/**",
+    "mldsa-native/mldsa/**",
+    "mldsa-native/LICENSE",
+    "bindings/**",
+]
+
+[build-dependencies]
+bindgen = { version = "0.72.1", optional = true }
+cc = "1.4.5"
+ar_archive_writer = "0.4.2"
+
+[features]
+default = []
+# Generate bindings during builtime with bindgen
+buildtime_bindgen = ["bindgen"]
