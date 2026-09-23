@@ -32,7 +32,7 @@ version = "1.8"
 default-features = false
 features = ["alloc"]
 optional = true
-version = "2"
+version = "3"
 
 [dependencies.serde]
 default-features = false
